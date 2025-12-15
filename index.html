@@ -12,7 +12,6 @@
     <script type="module">
         // Direct named import
         import { GIFEncoder } from 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js';
-        // We no longer need quantize because we are doing manual mapping for better control
         window.gifenc = { GIFEncoder };
         window.dispatchEvent(new Event('giflib_ready'));
     </script>
@@ -293,7 +292,7 @@
 <body>
 
 <div class="vector-container">
-    <div class="header">VECTOR.PAINT v1.5</div>
+    <div class="header">VECTOR.PAINT v1.6</div>
 
     <div class="workspace">
         <div class="scope-container">
@@ -438,6 +437,7 @@
             const gap = 1;
             ctx.fillRect(x + gap, y + gap, size - gap*2, size - gap*2);
             
+            // Draw white hot center (for screen display only)
             ctx.fillStyle = "#fff";
             ctx.globalAlpha = 0.3;
             ctx.fillRect(x + size/3, y + size/3, size/3, size/3);
@@ -700,7 +700,6 @@
 
     // --- HEX to RGB Helper ---
     function hexToRgb(hex) {
-        // Expand shorthand form (e.g. "03F") to full form (e.g. "0033FF")
         var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
         hex = hex.replace(shorthandRegex, function(m, r, g, b) {
             return r + r + g + g + b + b;
@@ -713,7 +712,7 @@
         } : { r: 51, g: 255, b: 0 }; // Default Green
     }
 
-    // --- Manual Palette Mapping (The "Green Screen" Fix) ---
+    // --- Manual Palette Mapping (Fixed Color Output) ---
     function exportGIF() {
         if (!window.gifenc || !window.gifenc.GIFEncoder) { 
             alert("LIBRARY ERROR: Please wait a moment or reload."); 
@@ -735,46 +734,31 @@
                 tempCanvas.height = canvasSize;
                 const tCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
                 
-                // 1. Get Base Color & Generate Fixed Gradient Palette
                 let colorHex = getComputedStyle(document.documentElement).getPropertyValue('--vector-color').trim();
                 if (!colorHex) colorHex = '#33ff00';
                 const baseColor = hexToRgb(colorHex);
 
-                // Create a 256 color palette fading from Black (0,0,0) to Base Color to White
+                // --- PALETTE GENERATION FIX ---
+                // We create a linear gradient from Black -> BaseColor only.
+                // We do NOT boost to White at the top end. This ensures max brightness = Vector Green.
+                
                 // Index 0: Black
                 const palette = [[5, 5, 5]]; 
                 
                 // Indices 1-255: Gradient
-                // We map brightness 1-255 to this gradient
                 for (let i = 1; i < 256; i++) {
                     const ratio = i / 255;
-                    // Simple linear interpolation from Black to BaseColor to White is hard to do in one loop
-                    // Let's do Black -> BaseColor -> White
-                    // Actually, simpler: Tint the pixel by its brightness.
-                    // If pixel is dim, it's dark green. If bright, it's bright green -> white.
-                    
-                    // Let's generate a palette that goes from Black -> BaseColor
-                    // We will allow the "White hot" center to handle itself via the very last indices
-                    let r = Math.floor(baseColor.r * ratio);
-                    let g = Math.floor(baseColor.g * ratio);
-                    let b = Math.floor(baseColor.b * ratio);
-                    
-                    // Boost to white at very high intensities (top 10%)
-                    if (ratio > 0.9) {
-                        const whiteBoost = (ratio - 0.9) * 10; // 0 to 1
-                        r = r + (255 - r) * whiteBoost;
-                        g = g + (255 - g) * whiteBoost;
-                        b = b + (255 - b) * whiteBoost;
-                    }
+                    // Linear interpolation from Black (5,5,5) to BaseColor
+                    let r = Math.floor(5 + (baseColor.r - 5) * ratio);
+                    let g = Math.floor(5 + (baseColor.g - 5) * ratio);
+                    let b = Math.floor(5 + (baseColor.b - 5) * ratio);
                     palette.push([r, g, b]);
                 }
 
                 frames.forEach(frame => {
-                    // 2. Draw Frame to Canvas
-                    tCtx.fillStyle = '#000000'; // Pure black base
+                    tCtx.fillStyle = '#000000'; 
                     tCtx.fillRect(0, 0, canvasSize, canvasSize);
 
-                    // Grid
                     tCtx.strokeStyle = '#1a8000';
                     tCtx.lineWidth = 0.5;
                     tCtx.beginPath();
@@ -810,8 +794,6 @@
                         }
                     }
 
-                    // 3. Manual Mapping: Map every pixel to our Fixed Palette
-                    // This bypasses automatic color quantization completely.
                     const imageData = tCtx.getImageData(0, 0, canvasSize, canvasSize).data;
                     const index = new Uint8Array(canvasSize * canvasSize);
                     
@@ -821,20 +803,14 @@
                         const b = imageData[i + 2];
                         const a = imageData[i + 3];
 
-                        // If transparent, map to black (index 0)
                         if (a < 50) {
                             index[i / 4] = 0;
                             continue;
                         }
 
-                        // Calculate percepted brightness
-                        // Green channel is dominant in this theme, but let's use standard luminance
-                        // or simpler: max value since we are monochrome-ish
+                        // Map max channel brightness to palette index
                         let brightness = Math.max(r, g, b);
                         
-                        // Scale 0-255 to palette index 0-255
-                        // However, palette index 0 is our specific black [5,5,5]
-                        // So we map 0 brightness to index 0
                         if (brightness < 10) index[i / 4] = 0;
                         else index[i / 4] = brightness; 
                     }
