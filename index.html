@@ -10,7 +10,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
     
     <script type="module">
-        // Direct named import
         import { GIFEncoder } from 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js';
         window.gifenc = { GIFEncoder };
         window.dispatchEvent(new Event('giflib_ready'));
@@ -38,14 +37,14 @@
             user-select: none;
             -webkit-user-select: none;
             
-            /* ALLOW SCROLLING FIX */
+            /* Allow scrolling on small screens */
             overflow-y: auto; 
             overflow-x: hidden;
-            padding: 20px 10px 40px 10px; /* Extra bottom padding for buttons */
+            padding: 20px 10px 40px 10px;
             box-sizing: border-box;
         }
 
-        /* Scanline Overlay - Fixed so it stays put while scrolling */
+        /* Scanline Overlay */
         body::after {
             content: " ";
             display: block;
@@ -54,10 +53,9 @@
             background: linear-gradient(to bottom, var(--scanline-color) 50%, transparent 50%);
             background-size: 100% 4px;
             pointer-events: none;
-            z-index: 1000;
+            z-index: 900; /* Behind modal */
         }
 
-        /* The Main Terminal Container */
         .vector-container {
             width: 100%;
             max-width: 600px;
@@ -66,10 +64,9 @@
             gap: 15px;
             position: relative;
             z-index: 1;
-            margin: auto; /* Center vertically if space allows */
+            margin: auto;
         }
 
-        /* Glowing Header */
         .header {
             text-align: center;
             border: 2px solid var(--vector-color);
@@ -83,23 +80,14 @@
         }
         
         .header::before {
-            content: '';
-            position: absolute;
-            top: -6px; left: -6px;
-            width: 10px; height: 10px;
-            border-top: 2px solid var(--vector-color);
-            border-left: 2px solid var(--vector-color);
+            content: ''; position: absolute; top: -6px; left: -6px; width: 10px; height: 10px;
+            border-top: 2px solid var(--vector-color); border-left: 2px solid var(--vector-color);
         }
         .header::after {
-            content: '';
-            position: absolute;
-            bottom: -6px; right: -6px;
-            width: 10px; height: 10px;
-            border-bottom: 2px solid var(--vector-color);
-            border-right: 2px solid var(--vector-color);
+            content: ''; position: absolute; bottom: -6px; right: -6px; width: 10px; height: 10px;
+            border-bottom: 2px solid var(--vector-color); border-right: 2px solid var(--vector-color);
         }
 
-        /* Main Workspace */
         .workspace {
             display: flex;
             flex-direction: column;
@@ -107,12 +95,10 @@
             align-items: center;
         }
 
-        /* Canvas Area - The "Scope" */
         .scope-container {
             position: relative;
             padding: 4px;
             border: 1px solid var(--vector-dim);
-            /* Prevent canvas from getting too huge on tall screens, but allow shrink */
             max-width: 100%; 
         }
 
@@ -141,7 +127,6 @@
             box-shadow: 0 0 15px rgba(51, 255, 0, 0.2);
         }
 
-        /* Controls Section */
         .controls-row {
             display: flex;
             gap: 15px;
@@ -187,15 +172,8 @@
             box-shadow: none;
         }
         
-        .btn-danger {
-            border-color: #ff3333;
-            color: #ff3333;
-            --vector-glow-red: 0 0 10px #ff3333;
-        }
-        .btn-danger:hover {
-             box-shadow: 0 0 10px #ff3333;
-             background: rgba(255, 50, 50, 0.1);
-        }
+        .btn-danger { border-color: #ff3333; color: #ff3333; }
+        .btn-danger:hover { box-shadow: 0 0 10px #ff3333; background: rgba(255, 50, 50, 0.1); }
 
         select {
             background: var(--vector-bg);
@@ -206,13 +184,12 @@
             font-size: 1rem;
         }
 
-        /* Film Strip */
         .timeline-container {
             width: 100%;
             border: 1px solid var(--vector-dim);
             padding: 5px;
             position: relative;
-            box-sizing: border-box; /* Ensure padding doesn't break width */
+            box-sizing: border-box; 
         }
         
         .timeline-label {
@@ -233,9 +210,7 @@
             scrollbar-width: none;
         }
         
-        .film-strip::-webkit-scrollbar {
-            display: none;
-        }
+        .film-strip::-webkit-scrollbar { display: none; }
         
         .film-frame {
             min-width: 48px;
@@ -255,31 +230,19 @@
         }
 
         .film-frame canvas {
-            width: 100%;
-            height: 100%;
-            border: none;
-            box-shadow: none;
-            background: transparent;
+            width: 100%; height: 100%; border: none; box-shadow: none; background: transparent;
         }
 
         input[type="range"] {
-            -webkit-appearance: none;
-            background: transparent;
-            width: 100px;
+            -webkit-appearance: none; background: transparent; width: 100px;
         }
         input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 15px;
-            width: 15px;
-            border: 1px solid var(--vector-color);
-            background: var(--vector-bg);
-            cursor: pointer;
-            margin-top: -6px;
+            -webkit-appearance: none; height: 15px; width: 15px;
+            border: 1px solid var(--vector-color); background: var(--vector-bg);
+            cursor: pointer; margin-top: -6px;
         }
         input[type="range"]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 2px;
-            background: var(--vector-dim);
+            width: 100%; height: 2px; background: var(--vector-dim);
         }
 
         @media (max-width: 500px) {
@@ -287,12 +250,69 @@
             .header { font-size: 1.2rem; }
             .vector-container { margin-top: 10px; }
         }
+
+        /* --- Custom Modal --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        
+        .modal-overlay.hidden { display: none; }
+
+        .modal-box {
+            background: var(--vector-bg);
+            border: 2px solid var(--vector-color);
+            box-shadow: var(--vector-glow), inset 0 0 20px rgba(51, 255, 0, 0.2);
+            padding: 20px;
+            max-width: 300px;
+            text-align: center;
+            position: relative;
+        }
+        
+        /* Modal corner decorations */
+        .modal-box::before {
+            content: ''; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px;
+            border-top: 2px solid var(--vector-color); border-left: 2px solid var(--vector-color);
+        }
+        .modal-box::after {
+            content: ''; position: absolute; bottom: -4px; right: -4px; width: 10px; height: 10px;
+            border-bottom: 2px solid var(--vector-color); border-right: 2px solid var(--vector-color);
+        }
+
+        .modal-text {
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            line-height: 1.4;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
     </style>
 </head>
 <body>
 
+<!-- System Interrupt Modal -->
+<div id="sys-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+        <div class="modal-text" id="modal-msg">SYSTEM MESSAGE</div>
+        <div class="modal-buttons">
+            <button class="btn" id="modal-ok">PROCEED</button>
+            <button class="btn btn-danger" id="modal-cancel">ABORT</button>
+        </div>
+    </div>
+</div>
+
 <div class="vector-container">
-    <div class="header">VECTOR.PAINT v1.6</div>
+    <div class="header">VECTOR.PAINT v1.8</div>
 
     <div class="workspace">
         <div class="scope-container">
@@ -305,7 +325,7 @@
     </div>
 
     <div class="controls-row">
-        <button class="btn active" id="tool-pen" onclick="setTool('pen')">[DRAW]</button>
+        <button class="btn active" id="tool-pen" onclick="setTool('pen')">[PEN]</button>
         <button class="btn" id="tool-eraser" onclick="setTool('eraser')">[ERASE]</button>
         <button class="btn" onclick="clearFrame()">[CLR]</button>
         
@@ -357,15 +377,53 @@
     let isPlaying = false;
     let playInterval = null;
     let fps = 8;
-    let tool = 'pen';
+    let tool = 'pen'; 
     let isDrawing = false;
     let showOnionSkin = true;
+    let currentDrawValue = 1; 
 
     // --- DOM ---
     const canvas = document.getElementById('editorCanvas');
     const ctx = canvas.getContext('2d');
     const filmStrip = document.getElementById('film-strip');
     const playBtn = document.getElementById('play-btn');
+
+    // --- Modal System ---
+    function showModal(msg, onConfirm = null, onCancel = null) {
+        const modal = document.getElementById('sys-modal');
+        const msgEl = document.getElementById('modal-msg');
+        const okBtn = document.getElementById('modal-ok');
+        const cancelBtn = document.getElementById('modal-cancel');
+        
+        msgEl.innerText = msg;
+        modal.classList.remove('hidden');
+        
+        // Reset buttons
+        okBtn.onclick = null;
+        cancelBtn.onclick = null;
+        
+        // Hide cancel button if it's just an alert (no callback)
+        if (!onConfirm && !onCancel) {
+            cancelBtn.style.display = 'none';
+            okBtn.innerText = "ACKNOWLEDGE";
+            okBtn.onclick = () => {
+                modal.classList.add('hidden');
+            };
+        } else {
+            cancelBtn.style.display = 'inline-block';
+            okBtn.innerText = "PROCEED";
+            
+            okBtn.onclick = () => {
+                modal.classList.add('hidden');
+                if (onConfirm) onConfirm();
+            };
+            
+            cancelBtn.onclick = () => {
+                modal.classList.add('hidden');
+                if (onCancel) onCancel();
+            };
+        }
+    }
 
     // --- Init ---
     function init() {
@@ -398,10 +456,14 @@
         return grid;
     }
 
+    // REPLACED standard confirm with showModal
     function startOver() {
-        if(confirm("INITIATE SYSTEM RESET? MEMORY WILL BE CLEARED.")) {
+        showModal("INITIATE SYSTEM RESET?\nALL DATA WILL BE PURGED.", () => {
+             // Explicitly force reset now
+            const select = document.getElementById('grid-size');
+            gridSize = parseInt(select.value); 
             forceReset();
-        }
+        });
     }
 
     function forceReset() {
@@ -409,23 +471,41 @@
         frames = [];
         currentFrameIndex = 0;
         filmStrip.innerHTML = '';
-        const select = document.getElementById('grid-size');
-        gridSize = parseInt(select.value);
+        
+        // Recalculate pixel size based on global gridSize
         pixelSize = canvasSize / gridSize;
+        
         addNewFrame();
         render();
         updateUI();
     }
 
+    // REPLACED standard confirm with showModal
     function changeGridSize() {
-        if(confirm("RECONFIGURING GRID MATRIX. CURRENT DATA WILL BE LOST.")) {
+        const select = document.getElementById('grid-size');
+        const newSize = parseInt(select.value);
+        
+        // If we are just initializing or empty, no need to confirm
+        if (frames.length <= 1 && !hasContent(frames[0])) {
+            gridSize = newSize;
             forceReset();
-        } else {
-            document.getElementById('grid-size').value = gridSize; // revert
+            return;
         }
+
+        showModal("RECONFIGURING MATRIX.\nCURRENT DATA WILL BE LOST.", () => {
+            gridSize = newSize;
+            forceReset();
+        }, () => {
+             // Revert selection if cancelled
+             select.value = gridSize;
+        });
     }
 
-    // --- Drawing ---
+    function hasContent(grid) {
+        return grid.some(row => row.some(cell => cell === 1));
+    }
+
+    // --- Drawing & Rendering ---
     function drawVectorRect(ctx, x, y, size, color, fill = false) {
         ctx.strokeStyle = color;
         ctx.lineWidth = 1;
@@ -437,7 +517,7 @@
             const gap = 1;
             ctx.fillRect(x + gap, y + gap, size - gap*2, size - gap*2);
             
-            // Draw white hot center (for screen display only)
+            // Draw white hot center
             ctx.fillStyle = "#fff";
             ctx.globalAlpha = 0.3;
             ctx.fillRect(x + size/3, y + size/3, size/3, size/3);
@@ -480,19 +560,21 @@
         }
 
         // Active Frame
-        const currentGrid = frames[currentFrameIndex];
-        const color = getComputedStyle(document.documentElement).getPropertyValue('--vector-color').trim();
-        for (let y = 0; y < gridSize; y++) {
-            for (let x = 0; x < gridSize; x++) {
-                if (currentGrid[y][x] === 1) {
-                    drawVectorRect(ctx, x * pixelSize, y * pixelSize, pixelSize, color, true);
+        if (frames[currentFrameIndex]) {
+            const currentGrid = frames[currentFrameIndex];
+            const color = getComputedStyle(document.documentElement).getPropertyValue('--vector-color').trim();
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    if (currentGrid[y][x] === 1) {
+                        drawVectorRect(ctx, x * pixelSize, y * pixelSize, pixelSize, color, true);
+                    }
                 }
             }
         }
         updateThumbnail(currentFrameIndex);
     }
 
-    // --- Input Handling ---
+    // --- Input Handling (Smart Toggle) ---
     function getGridCoords(e) {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -502,25 +584,53 @@
         return { x, y };
     }
 
-    function handlePaint(e) {
+    function handleStart(e) {
         if (isPlaying) return;
+        if (e.cancelable) e.preventDefault(); 
+        
+        isDrawing = true;
         const { x, y } = getGridCoords(e);
+        
         if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
-            const val = tool === 'pen' ? 1 : 0;
-            if (frames[currentFrameIndex][y][x] !== val) {
-                frames[currentFrameIndex][y][x] = val;
-                render();
+            if (tool === 'eraser') {
+                currentDrawValue = 0;
+            } else {
+                const currentVal = frames[currentFrameIndex][y][x];
+                currentDrawValue = currentVal === 1 ? 0 : 1;
             }
+            paintPixel(x, y);
         }
-        if (e.cancelable) e.preventDefault();
     }
 
-    canvas.addEventListener('mousedown', (e) => { isDrawing = true; handlePaint(e); });
-    canvas.addEventListener('mousemove', (e) => { if (isDrawing) handlePaint(e); });
-    window.addEventListener('mouseup', () => { isDrawing = false; });
-    canvas.addEventListener('touchstart', (e) => { isDrawing = true; handlePaint(e); }, {passive: false});
-    canvas.addEventListener('touchmove', (e) => { if (isDrawing) handlePaint(e); }, {passive: false});
-    canvas.addEventListener('touchend', () => { isDrawing = false; });
+    function handleMove(e) {
+        if (!isDrawing || isPlaying) return;
+        if (e.cancelable) e.preventDefault();
+
+        const { x, y } = getGridCoords(e);
+        if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+            paintPixel(x, y);
+        }
+    }
+
+    function handleEnd() {
+        isDrawing = false;
+    }
+
+    function paintPixel(x, y) {
+        if (frames[currentFrameIndex][y][x] !== currentDrawValue) {
+            frames[currentFrameIndex][y][x] = currentDrawValue;
+            render();
+        }
+    }
+
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    
+    canvas.addEventListener('touchstart', handleStart, {passive: false});
+    canvas.addEventListener('touchmove', handleMove, {passive: false});
+    canvas.addEventListener('touchend', handleEnd);
+
 
     // --- Frame Ops ---
     function addNewFrame(copyPrevious = false) {
@@ -562,11 +672,15 @@
             render();
             return;
         }
-        frames.splice(currentFrameIndex, 1);
-        if (currentFrameIndex >= frames.length) currentFrameIndex = frames.length - 1;
-        refreshThumbnails();
-        render();
-        updateUI();
+        
+        // Use custom modal for delete too
+        showModal("DELETE FRAME?", () => {
+            frames.splice(currentFrameIndex, 1);
+            if (currentFrameIndex >= frames.length) currentFrameIndex = frames.length - 1;
+            refreshThumbnails();
+            render();
+            updateUI();
+        });
     }
 
     function clearFrame() {
@@ -692,13 +806,14 @@
                 refreshThumbnails();
                 render();
                 updateUI();
-            } catch(err) { alert("DATA CORRUPT"); }
+            } catch(err) { 
+                showModal("DATA CORRUPT\nCANNOT LOAD.");
+            }
         };
         reader.readAsText(file);
         e.target.value = '';
     }
 
-    // --- HEX to RGB Helper ---
     function hexToRgb(hex) {
         var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
         hex = hex.replace(shorthandRegex, function(m, r, g, b) {
@@ -709,13 +824,12 @@
             r: parseInt(result[1], 16),
             g: parseInt(result[2], 16),
             b: parseInt(result[3], 16)
-        } : { r: 51, g: 255, b: 0 }; // Default Green
+        } : { r: 51, g: 255, b: 0 };
     }
 
-    // --- Manual Palette Mapping (Fixed Color Output) ---
     function exportGIF() {
         if (!window.gifenc || !window.gifenc.GIFEncoder) { 
-            alert("LIBRARY ERROR: Please wait a moment or reload."); 
+            showModal("LIBRARY ERROR\nPLEASE RELOAD.");
             return; 
         }
         
@@ -738,17 +852,10 @@
                 if (!colorHex) colorHex = '#33ff00';
                 const baseColor = hexToRgb(colorHex);
 
-                // --- PALETTE GENERATION FIX ---
-                // We create a linear gradient from Black -> BaseColor only.
-                // We do NOT boost to White at the top end. This ensures max brightness = Vector Green.
-                
-                // Index 0: Black
                 const palette = [[5, 5, 5]]; 
                 
-                // Indices 1-255: Gradient
                 for (let i = 1; i < 256; i++) {
                     const ratio = i / 255;
-                    // Linear interpolation from Black (5,5,5) to BaseColor
                     let r = Math.floor(5 + (baseColor.r - 5) * ratio);
                     let g = Math.floor(5 + (baseColor.g - 5) * ratio);
                     let b = Math.floor(5 + (baseColor.b - 5) * ratio);
@@ -770,7 +877,6 @@
                     }
                     tCtx.stroke();
 
-                    // Active Pixels
                     tCtx.shadowBlur = 4;
                     tCtx.shadowColor = colorHex;
                     tCtx.strokeStyle = colorHex;
@@ -808,7 +914,6 @@
                             continue;
                         }
 
-                        // Map max channel brightness to palette index
                         let brightness = Math.max(r, g, b);
                         
                         if (brightness < 10) index[i / 4] = 0;
@@ -832,7 +937,7 @@
                 
             } catch (e) {
                 console.error(e);
-                alert("ERROR: " + e.message);
+                showModal("ERROR:\n" + e.message);
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
