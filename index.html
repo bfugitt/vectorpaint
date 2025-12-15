@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vector Scan Console</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <script type="module">
+        // Direct named import
+        import { GIFEncoder } from 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js';
+        // We no longer need quantize because we are doing manual mapping for better control
+        window.gifenc = { GIFEncoder };
+        window.dispatchEvent(new Event('giflib_ready'));
+    </script>
+
+    <style>
+        /* --- Vector / Phosphor Theme Styles --- */
+        :root {
+            /* Palette */
+            --vector-color: #33ff00; 
+            --vector-dim: #1a8000;
+            --vector-bg: #050505;
+            --vector-glow: 0 0 10px var(--vector-color), 0 0 5px var(--vector-color);
+            --scanline-color: rgba(0, 0, 0, 0.5);
+        }
+
+        body {
+            font-family: 'Share Tech Mono', monospace;
+            background-color: var(--vector-bg);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            color: var(--vector-color);
+            user-select: none;
+            -webkit-user-select: none;
+            
+            /* ALLOW SCROLLING FIX */
+            overflow-y: auto; 
+            overflow-x: hidden;
+            padding: 20px 10px 40px 10px; /* Extra bottom padding for buttons */
+            box-sizing: border-box;
+        }
+
+        /* Scanline Overlay - Fixed so it stays put while scrolling */
+        body::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(to bottom, var(--scanline-color) 50%, transparent 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* The Main Terminal Container */
+        .vector-container {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            position: relative;
+            z-index: 1;
+            margin: auto; /* Center vertically if space allows */
+        }
+
+        /* Glowing Header */
+        .header {
+            text-align: center;
+            border: 2px solid var(--vector-color);
+            padding: 10px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            font-size: 1.5rem;
+            box-shadow: var(--vector-glow);
+            text-shadow: 0 0 5px var(--vector-color);
+            position: relative;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -6px; left: -6px;
+            width: 10px; height: 10px;
+            border-top: 2px solid var(--vector-color);
+            border-left: 2px solid var(--vector-color);
+        }
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: -6px; right: -6px;
+            width: 10px; height: 10px;
+            border-bottom: 2px solid var(--vector-color);
+            border-right: 2px solid var(--vector-color);
+        }
+
+        /* Main Workspace */
+        .workspace {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+
+        /* Canvas Area - The "Scope" */
+        .scope-container {
+            position: relative;
+            padding: 4px;
+            border: 1px solid var(--vector-dim);
+            /* Prevent canvas from getting too huge on tall screens, but allow shrink */
+            max-width: 100%; 
+        }
+
+        .scope-corner {
+            position: absolute;
+            width: 15px; height: 15px;
+            border-color: var(--vector-color);
+            border-style: solid;
+        }
+        .tl { top: -2px; left: -2px; border-width: 2px 0 0 2px; }
+        .tr { top: -2px; right: -2px; border-width: 2px 2px 0 0; }
+        .bl { bottom: -2px; left: -2px; border-width: 0 0 2px 2px; }
+        .br { bottom: -2px; right: -2px; border-width: 0 2px 2px 0; }
+
+        canvas {
+            background: rgba(0, 20, 0, 0.3);
+            border: 1px solid var(--vector-dim);
+            cursor: crosshair;
+            image-rendering: pixelated;
+            width: 100%;
+            height: auto;
+            max-width: 320px; 
+            aspect-ratio: 1 / 1; 
+            touch-action: none;
+            display: block;
+            box-shadow: 0 0 15px rgba(51, 255, 0, 0.2);
+        }
+
+        /* Controls Section */
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .btn {
+            background: transparent;
+            border: 1px solid var(--vector-color);
+            color: var(--vector-color);
+            font-family: 'Share Tech Mono', monospace;
+            padding: 8px 16px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            position: relative;
+            transition: all 0.1s;
+        }
+
+        .btn:hover:not(:disabled) {
+            box-shadow: var(--vector-glow);
+            background: rgba(51, 255, 0, 0.1);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .btn.active {
+            background: var(--vector-color);
+            color: var(--vector-bg);
+            box-shadow: var(--vector-glow);
+            font-weight: bold;
+        }
+        
+        .btn:disabled {
+            border-color: var(--vector-dim);
+            color: var(--vector-dim);
+            cursor: not-allowed;
+            opacity: 0.5;
+            box-shadow: none;
+        }
+        
+        .btn-danger {
+            border-color: #ff3333;
+            color: #ff3333;
+            --vector-glow-red: 0 0 10px #ff3333;
+        }
+        .btn-danger:hover {
+             box-shadow: 0 0 10px #ff3333;
+             background: rgba(255, 50, 50, 0.1);
+        }
+
+        select {
+            background: var(--vector-bg);
+            border: 1px solid var(--vector-color);
+            color: var(--vector-color);
+            font-family: 'Share Tech Mono', monospace;
+            padding: 5px;
+            font-size: 1rem;
+        }
+
+        /* Film Strip */
+        .timeline-container {
+            width: 100%;
+            border: 1px solid var(--vector-dim);
+            padding: 5px;
+            position: relative;
+            box-sizing: border-box; /* Ensure padding doesn't break width */
+        }
+        
+        .timeline-label {
+            position: absolute;
+            top: -10px;
+            left: 10px;
+            background: var(--vector-bg);
+            padding: 0 5px;
+            font-size: 0.8rem;
+            color: var(--vector-dim);
+        }
+
+        .film-strip {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 10px 5px;
+            scrollbar-width: none;
+        }
+        
+        .film-strip::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .film-frame {
+            min-width: 48px;
+            width: 48px;
+            height: 48px;
+            border: 1px solid var(--vector-dim);
+            position: relative;
+            cursor: pointer;
+            opacity: 0.6;
+            flex-shrink: 0;
+        }
+
+        .film-frame.selected {
+            opacity: 1;
+            border: 1px solid var(--vector-color);
+            box-shadow: var(--vector-glow);
+        }
+
+        .film-frame canvas {
+            width: 100%;
+            height: 100%;
+            border: none;
+            box-shadow: none;
+            background: transparent;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: transparent;
+            width: 100px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 15px;
+            width: 15px;
+            border: 1px solid var(--vector-color);
+            background: var(--vector-bg);
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 2px;
+            background: var(--vector-dim);
+        }
+
+        @media (max-width: 500px) {
+            .btn { padding: 6px 10px; font-size: 0.9rem; }
+            .header { font-size: 1.2rem; }
+            .vector-container { margin-top: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="vector-container">
+    <div class="header">VECTOR.PAINT v1.5</div>
+
+    <div class="workspace">
+        <div class="scope-container">
+            <div class="scope-corner tl"></div>
+            <div class="scope-corner tr"></div>
+            <div class="scope-corner bl"></div>
+            <div class="scope-corner br"></div>
+            <canvas id="editorCanvas" width="320" height="320"></canvas>
+        </div>
+    </div>
+
+    <div class="controls-row">
+        <button class="btn active" id="tool-pen" onclick="setTool('pen')">[DRAW]</button>
+        <button class="btn" id="tool-eraser" onclick="setTool('eraser')">[ERASE]</button>
+        <button class="btn" onclick="clearFrame()">[CLR]</button>
+        
+        <select id="grid-size" onchange="changeGridSize()">
+            <option value="8">GRID: 8</option>
+            <option value="16">GRID: 16</option>
+            <option value="32">GRID: 32</option>
+        </select>
+    </div>
+
+    <div class="timeline-container">
+        <span class="timeline-label">SEQUENCE_BUFFER</span>
+        <div class="film-strip" id="film-strip"></div>
+    </div>
+
+    <div class="controls-row" style="justify-content: space-between; align-items: center;">
+        <div style="display:flex; gap:10px;">
+            <button class="btn" id="save-cel-btn" onclick="saveCelAndNext()">ADD_FRAME</button>
+            <button class="btn" onclick="duplicateFrame()">DUP</button>
+            <button class="btn btn-danger" onclick="deleteFrame()">DEL</button>
+        </div>
+        
+        <div style="display:flex; gap:10px; align-items: center;">
+            <span style="font-size: 0.8rem;">RATE:</span>
+            <input type="range" id="speed-range" min="1" max="20" value="8" oninput="updateSpeed()">
+            <button class="btn" id="play-btn" onclick="togglePlay()">RUN</button>
+        </div>
+    </div>
+
+    <div class="controls-row" style="border-top: 1px dashed var(--vector-dim); padding-top: 15px; margin-top: 5px;">
+        <button class="btn" onclick="saveProject()">SAVE_DSK</button>
+        <button class="btn" onclick="document.getElementById('file-input').click()">LOAD_DSK</button>
+        <button class="btn" id="export-btn" onclick="exportGIF()" style="border-style: double; border-width: 3px;" disabled>LOADING LIB...</button>
+        <button class="btn btn-danger" onclick="startOver()">RESET_SYS</button>
+    </div>
+
+    <input type="file" id="file-input" style="display:none" accept=".json" onchange="loadProject(event)">
+</div>
+
+<script>
+    // --- Config ---
+    let gridSize = 8;
+    const canvasSize = 320; 
+    let pixelSize = canvasSize / gridSize;
+    
+    // --- State ---
+    let frames = []; 
+    let currentFrameIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+    let fps = 8;
+    let tool = 'pen';
+    let isDrawing = false;
+    let showOnionSkin = true;
+
+    // --- DOM ---
+    const canvas = document.getElementById('editorCanvas');
+    const ctx = canvas.getContext('2d');
+    const filmStrip = document.getElementById('film-strip');
+    const playBtn = document.getElementById('play-btn');
+
+    // --- Init ---
+    function init() {
+        addNewFrame();
+        render();
+        updateUI();
+        
+        if (window.gifenc && window.gifenc.GIFEncoder) {
+            enableExport();
+        }
+    }
+    
+    function enableExport() {
+        const btn = document.getElementById('export-btn');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = "&gt; RENDER GIF &lt;";
+        }
+    }
+    
+    window.addEventListener('giflib_ready', enableExport);
+
+    // --- Core Logic ---
+    function createEmptyGrid(size) {
+        let grid = [];
+        for (let y = 0; y < size; y++) {
+            let row = new Array(size).fill(0);
+            grid.push(row);
+        }
+        return grid;
+    }
+
+    function startOver() {
+        if(confirm("INITIATE SYSTEM RESET? MEMORY WILL BE CLEARED.")) {
+            forceReset();
+        }
+    }
+
+    function forceReset() {
+        if (isPlaying) stopAnimation();
+        frames = [];
+        currentFrameIndex = 0;
+        filmStrip.innerHTML = '';
+        const select = document.getElementById('grid-size');
+        gridSize = parseInt(select.value);
+        pixelSize = canvasSize / gridSize;
+        addNewFrame();
+        render();
+        updateUI();
+    }
+
+    function changeGridSize() {
+        if(confirm("RECONFIGURING GRID MATRIX. CURRENT DATA WILL BE LOST.")) {
+            forceReset();
+        } else {
+            document.getElementById('grid-size').value = gridSize; // revert
+        }
+    }
+
+    // --- Drawing ---
+    function drawVectorRect(ctx, x, y, size, color, fill = false) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.shadowBlur = 4;
+        ctx.shadowColor = color;
+        
+        if (fill) {
+            ctx.fillStyle = color;
+            const gap = 1;
+            ctx.fillRect(x + gap, y + gap, size - gap*2, size - gap*2);
+            
+            ctx.fillStyle = "#fff";
+            ctx.globalAlpha = 0.3;
+            ctx.fillRect(x + size/3, y + size/3, size/3, size/3);
+            ctx.globalAlpha = 1.0;
+        } else {
+            ctx.strokeRect(x, y, size, size);
+        }
+        ctx.shadowBlur = 0;
+    }
+
+    function drawGridLines(ctx) {
+        ctx.strokeStyle = '#1a8000';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        for (let i = 0; i <= gridSize; i++) {
+            ctx.moveTo(i * pixelSize, 0);
+            ctx.lineTo(i * pixelSize, canvasSize);
+            ctx.moveTo(0, i * pixelSize);
+            ctx.lineTo(canvasSize, i * pixelSize);
+        }
+        ctx.stroke();
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, canvasSize, canvasSize);
+        drawGridLines(ctx);
+
+        // Onion Skin
+        if (!isPlaying && showOnionSkin && currentFrameIndex > 0) {
+            const prevFrame = frames[currentFrameIndex - 1];
+            const ghostColor = 'rgba(51, 255, 0, 0.3)'; 
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    if (prevFrame[y][x] === 1) {
+                        ctx.fillStyle = ghostColor;
+                        ctx.fillRect(x * pixelSize + 2, y * pixelSize + 2, pixelSize - 4, pixelSize - 4);
+                    }
+                }
+            }
+        }
+
+        // Active Frame
+        const currentGrid = frames[currentFrameIndex];
+        const color = getComputedStyle(document.documentElement).getPropertyValue('--vector-color').trim();
+        for (let y = 0; y < gridSize; y++) {
+            for (let x = 0; x < gridSize; x++) {
+                if (currentGrid[y][x] === 1) {
+                    drawVectorRect(ctx, x * pixelSize, y * pixelSize, pixelSize, color, true);
+                }
+            }
+        }
+        updateThumbnail(currentFrameIndex);
+    }
+
+    // --- Input Handling ---
+    function getGridCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const x = Math.floor((clientX - rect.left) / (rect.width / gridSize));
+        const y = Math.floor((clientY - rect.top) / (rect.height / gridSize));
+        return { x, y };
+    }
+
+    function handlePaint(e) {
+        if (isPlaying) return;
+        const { x, y } = getGridCoords(e);
+        if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+            const val = tool === 'pen' ? 1 : 0;
+            if (frames[currentFrameIndex][y][x] !== val) {
+                frames[currentFrameIndex][y][x] = val;
+                render();
+            }
+        }
+        if (e.cancelable) e.preventDefault();
+    }
+
+    canvas.addEventListener('mousedown', (e) => { isDrawing = true; handlePaint(e); });
+    canvas.addEventListener('mousemove', (e) => { if (isDrawing) handlePaint(e); });
+    window.addEventListener('mouseup', () => { isDrawing = false; });
+    canvas.addEventListener('touchstart', (e) => { isDrawing = true; handlePaint(e); }, {passive: false});
+    canvas.addEventListener('touchmove', (e) => { if (isDrawing) handlePaint(e); }, {passive: false});
+    canvas.addEventListener('touchend', () => { isDrawing = false; });
+
+    // --- Frame Ops ---
+    function addNewFrame(copyPrevious = false) {
+        let newGrid;
+        if (copyPrevious && frames.length > 0) {
+            newGrid = JSON.parse(JSON.stringify(frames[frames.length - 1]));
+        } else {
+            newGrid = createEmptyGrid(gridSize);
+        }
+        frames.push(newGrid);
+        currentFrameIndex = frames.length - 1;
+        addThumbnail(currentFrameIndex);
+        setTimeout(() => { filmStrip.scrollLeft = filmStrip.scrollWidth; }, 50);
+    }
+
+    function saveCelAndNext() {
+        if (currentFrameIndex < frames.length - 1) {
+            currentFrameIndex++;
+        } else {
+            addNewFrame(false);
+        }
+        render(); 
+        updateUI();
+    }
+
+    function duplicateFrame() {
+        if (frames.length === 0) return;
+        const newGrid = JSON.parse(JSON.stringify(frames[currentFrameIndex]));
+        frames.splice(currentFrameIndex + 1, 0, newGrid);
+        currentFrameIndex++;
+        refreshThumbnails();
+        render();
+        updateUI();
+    }
+
+    function deleteFrame() {
+        if (frames.length <= 1) {
+            frames[currentFrameIndex] = createEmptyGrid(gridSize);
+            render();
+            return;
+        }
+        frames.splice(currentFrameIndex, 1);
+        if (currentFrameIndex >= frames.length) currentFrameIndex = frames.length - 1;
+        refreshThumbnails();
+        render();
+        updateUI();
+    }
+
+    function clearFrame() {
+        frames[currentFrameIndex] = createEmptyGrid(gridSize);
+        render();
+    }
+
+    function togglePlay() {
+        if (isPlaying) stopAnimation();
+        else startAnimation();
+    }
+
+    function startAnimation() {
+        if (frames.length < 1) return;
+        isPlaying = true;
+        playBtn.innerText = 'HALT';
+        playBtn.classList.add('active');
+        playInterval = setInterval(() => {
+            currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+            render();
+            updateUI(); 
+        }, 1000 / fps);
+    }
+
+    function stopAnimation() {
+        isPlaying = false;
+        clearInterval(playInterval);
+        playBtn.innerText = 'RUN';
+        playBtn.classList.remove('active');
+        render();
+    }
+
+    function updateSpeed() {
+        fps = parseInt(document.getElementById('speed-range').value);
+        if (isPlaying) {
+            stopAnimation();
+            startAnimation();
+        }
+    }
+
+    function updateUI() {
+        Array.from(filmStrip.children).forEach((child, idx) => {
+            if (idx === currentFrameIndex) child.classList.add('selected');
+            else child.classList.remove('selected');
+        });
+        document.getElementById('save-cel-btn').innerText = 
+            (currentFrameIndex === frames.length - 1) ? "ADD_FRAME" : "NEXT_FRAME >";
+    }
+
+    function addThumbnail(index) {
+        const thumb = document.createElement('div');
+        thumb.className = 'film-frame';
+        thumb.onclick = () => { currentFrameIndex = index; render(); updateUI(); };
+        const tCanvas = document.createElement('canvas');
+        tCanvas.width = gridSize;
+        tCanvas.height = gridSize;
+        thumb.appendChild(tCanvas);
+        filmStrip.appendChild(thumb);
+    }
+
+    function updateThumbnail(index) {
+        if (!filmStrip.children[index]) return;
+        const tCanvas = filmStrip.children[index].querySelector('canvas');
+        const tCtx = tCanvas.getContext('2d');
+        const grid = frames[index];
+        const color = getComputedStyle(document.documentElement).getPropertyValue('--vector-color').trim();
+        
+        tCtx.clearRect(0, 0, gridSize, gridSize);
+        tCtx.fillStyle = color;
+        for (let y = 0; y < gridSize; y++) {
+            for (let x = 0; x < gridSize; x++) {
+                if (grid[y][x] === 1) tCtx.fillRect(x, y, 1, 1);
+            }
+        }
+    }
+
+    function refreshThumbnails() {
+        filmStrip.innerHTML = '';
+        frames.forEach((_, idx) => addThumbnail(idx));
+        frames.forEach((_, idx) => updateThumbnail(idx));
+    }
+
+    function setTool(t) {
+        tool = t;
+        document.getElementById('tool-pen').classList.toggle('active', t === 'pen');
+        document.getElementById('tool-eraser').classList.toggle('active', t === 'eraser');
+    }
+
+    function getTimestampFilename(ext) {
+        const now = new Date();
+        return `VEC_${now.getTime()}.${ext}`;
+    }
+
+    function saveProject() {
+        const data = { gridSize, fps, frames };
+        const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getTimestampFilename('json');
+        a.click();
+    }
+
+    function loadProject(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const data = JSON.parse(evt.target.result);
+                if (isPlaying) stopAnimation();
+                if (data.gridSize) {
+                    gridSize = data.gridSize;
+                    pixelSize = canvasSize / gridSize;
+                    document.getElementById('grid-size').value = gridSize;
+                }
+                if (data.fps) {
+                    fps = data.fps;
+                    document.getElementById('speed-range').value = fps;
+                }
+                frames = data.frames;
+                currentFrameIndex = 0;
+                refreshThumbnails();
+                render();
+                updateUI();
+            } catch(err) { alert("DATA CORRUPT"); }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    }
+
+    // --- HEX to RGB Helper ---
+    function hexToRgb(hex) {
+        // Expand shorthand form (e.g. "03F") to full form (e.g. "0033FF")
+        var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+        hex = hex.replace(shorthandRegex, function(m, r, g, b) {
+            return r + r + g + g + b + b;
+        });
+        var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : { r: 51, g: 255, b: 0 }; // Default Green
+    }
+
+    // --- Manual Palette Mapping (The "Green Screen" Fix) ---
+    function exportGIF() {
+        if (!window.gifenc || !window.gifenc.GIFEncoder) { 
+            alert("LIBRARY ERROR: Please wait a moment or reload."); 
+            return; 
+        }
+        
+        const { GIFEncoder } = window.gifenc;
+        const btn = document.getElementById('export-btn');
+        const originalText = btn.innerText;
+        btn.innerText = "PROCESSING...";
+        btn.disabled = true;
+
+        setTimeout(() => {
+            try {
+                const gif = new GIFEncoder();
+                
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = canvasSize;
+                tempCanvas.height = canvasSize;
+                const tCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                
+                // 1. Get Base Color & Generate Fixed Gradient Palette
+                let colorHex = getComputedStyle(document.documentElement).getPropertyValue('--vector-color').trim();
+                if (!colorHex) colorHex = '#33ff00';
+                const baseColor = hexToRgb(colorHex);
+
+                // Create a 256 color palette fading from Black (0,0,0) to Base Color to White
+                // Index 0: Black
+                const palette = [[5, 5, 5]]; 
+                
+                // Indices 1-255: Gradient
+                // We map brightness 1-255 to this gradient
+                for (let i = 1; i < 256; i++) {
+                    const ratio = i / 255;
+                    // Simple linear interpolation from Black to BaseColor to White is hard to do in one loop
+                    // Let's do Black -> BaseColor -> White
+                    // Actually, simpler: Tint the pixel by its brightness.
+                    // If pixel is dim, it's dark green. If bright, it's bright green -> white.
+                    
+                    // Let's generate a palette that goes from Black -> BaseColor
+                    // We will allow the "White hot" center to handle itself via the very last indices
+                    let r = Math.floor(baseColor.r * ratio);
+                    let g = Math.floor(baseColor.g * ratio);
+                    let b = Math.floor(baseColor.b * ratio);
+                    
+                    // Boost to white at very high intensities (top 10%)
+                    if (ratio > 0.9) {
+                        const whiteBoost = (ratio - 0.9) * 10; // 0 to 1
+                        r = r + (255 - r) * whiteBoost;
+                        g = g + (255 - g) * whiteBoost;
+                        b = b + (255 - b) * whiteBoost;
+                    }
+                    palette.push([r, g, b]);
+                }
+
+                frames.forEach(frame => {
+                    // 2. Draw Frame to Canvas
+                    tCtx.fillStyle = '#000000'; // Pure black base
+                    tCtx.fillRect(0, 0, canvasSize, canvasSize);
+
+                    // Grid
+                    tCtx.strokeStyle = '#1a8000';
+                    tCtx.lineWidth = 0.5;
+                    tCtx.beginPath();
+                    for (let i = 0; i <= gridSize; i++) {
+                        tCtx.moveTo(i * pixelSize, 0);
+                        tCtx.lineTo(i * pixelSize, canvasSize);
+                        tCtx.moveTo(0, i * pixelSize);
+                        tCtx.lineTo(canvasSize, i * pixelSize);
+                    }
+                    tCtx.stroke();
+
+                    // Active Pixels
+                    tCtx.shadowBlur = 4;
+                    tCtx.shadowColor = colorHex;
+                    tCtx.strokeStyle = colorHex;
+                    tCtx.lineWidth = 1;
+                    
+                    for (let y = 0; y < gridSize; y++) {
+                        for (let x = 0; x < gridSize; x++) {
+                            if (frame[y][x] === 1) {
+                                tCtx.fillStyle = colorHex;
+                                const gap = 1;
+                                tCtx.fillRect(x * pixelSize + gap, y * pixelSize + gap, pixelSize - gap*2, pixelSize - gap*2);
+                                
+                                tCtx.shadowBlur = 0; 
+                                tCtx.fillStyle = "#ffffff";
+                                tCtx.globalAlpha = 0.4;
+                                tCtx.fillRect(x * pixelSize + pixelSize/3, y * pixelSize + pixelSize/3, pixelSize/3, pixelSize/3);
+                                tCtx.globalAlpha = 1.0;
+                                tCtx.shadowBlur = 4;
+                                tCtx.shadowColor = colorHex;
+                            }
+                        }
+                    }
+
+                    // 3. Manual Mapping: Map every pixel to our Fixed Palette
+                    // This bypasses automatic color quantization completely.
+                    const imageData = tCtx.getImageData(0, 0, canvasSize, canvasSize).data;
+                    const index = new Uint8Array(canvasSize * canvasSize);
+                    
+                    for (let i = 0; i < imageData.length; i += 4) {
+                        const r = imageData[i];
+                        const g = imageData[i + 1];
+                        const b = imageData[i + 2];
+                        const a = imageData[i + 3];
+
+                        // If transparent, map to black (index 0)
+                        if (a < 50) {
+                            index[i / 4] = 0;
+                            continue;
+                        }
+
+                        // Calculate percepted brightness
+                        // Green channel is dominant in this theme, but let's use standard luminance
+                        // or simpler: max value since we are monochrome-ish
+                        let brightness = Math.max(r, g, b);
+                        
+                        // Scale 0-255 to palette index 0-255
+                        // However, palette index 0 is our specific black [5,5,5]
+                        // So we map 0 brightness to index 0
+                        if (brightness < 10) index[i / 4] = 0;
+                        else index[i / 4] = brightness; 
+                    }
+                    
+                    gif.writeFrame(index, canvasSize, canvasSize, { 
+                        palette: palette, 
+                        delay: 1000/fps 
+                    });
+                });
+                
+                gif.finish();
+                
+                const blob = new Blob([gif.bytes()], { type: 'image/gif' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = getTimestampFilename('gif');
+                a.click();
+                
+            } catch (e) {
+                console.error(e);
+                alert("ERROR: " + e.message);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }, 50);
+    }
+
+    // --- Init ---
+    init();
+
+</script>
+</body>
+</html>
